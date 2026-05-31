@@ -51,6 +51,8 @@ const LOCATION_NO_RES = [
   /\bremote\s*\(\s*canada\s*\)/i,
   /\bremote\s*-\s*(?:united kingdom|uk)\b/i,
   /\b(?:united kingdom|uk)\s*[-–(]?\s*remote\b/i,
+  /\bremote\s*[-–]?\s*(?:eu|eea|europe|european union)\b/i,
+  /\b(?:eu|eea|europe|european union)\s*[-–]?\s*remote\b/i,
   /\bremote\s*-\s*(?:germany|france|spain|italy|netherlands|poland|ireland|sweden|norway|denmark|belgium|austria|switzerland|portugal)\b/i,
   /\b(?:germany|france|spain|italy|netherlands|poland|ireland|sweden|norway|denmark|belgium|austria|switzerland|portugal)\s*[-–]?\s*remote\b/i,
   /\bremote\s*-\s*(?:india|mexico|colombia|brazil|australia|japan|china|philippines|pakistan|argentina|chile|peru|singapore|hong kong|korea|israel|turkey|uae|dubai)\b/i,
@@ -68,6 +70,12 @@ const DESCRIPTION_NO_RES = [
   /\beligible\s+to\s+work\s+in\s+(?:the\s+)?(?:united states|u\.s\.|usa)\b/i,
   /\bauthorized\s+to\s+work\s+in\s+(?:the\s+)?(?:united states|u\.s\.|usa)\b/i,
   /\b(?:us|u\.s\.|usa|united states)\s+citizen(?:ship)?\s+(?:required|only)\b/i,
+  /\b(?:must be|required to be)\s+(?:legally\s+)?(?:located|based|residing|living)\s+in\s+(?:the\s+)?(?:eu|eea|european union)\b/i,
+  /\b(?:eligible|authorized)\s+to\s+work\s+in\s+(?:the\s+)?(?:eu|eea|european union)\b/i,
+  /\b(?:within|in)\s+(?:certain\s+)?(?:countries?\s+(?:within|in)\s+)?(?:the\s+)?(?:eu|eea|european union)\b/i,
+  /\b(?:candidates?|applicants?)\s+based\s+in\s+(?:certain\s+)?(?:countries?\s+(?:within|in)\s+)?(?:the\s+)?(?:eu|eea|european union)\b/i,
+  /\b(?:eu|eea|european union)\s+(?:member\s+)?(?:states?|countries?)\s+only\b/i,
+  /\bremote\s+for\s+candidates?\s+based\s+in\s+(?:certain\s+)?(?:countries?\s+(?:within|in)\s+)?(?:the\s+)?(?:eu|eea|european union)\b/i,
 ];
 
 const ONSITE_NO_RES = [
@@ -107,7 +115,7 @@ function locationIsRegionLocked(location) {
   if (locationHasOpenRegion(location)) return false;
   if (locationHardNo(location)) return true;
   const loc = normalize(location);
-  return loc.includes('remote') && /\b(?:us|usa|u\.s\.|united states|canada|uk|united kingdom|india|mexico|australia|germany|france|spain)\b/.test(loc);
+  return loc.includes('remote') && /\b(?:us|usa|u\.s\.|united states|canada|uk|united kingdom|europe|eu\b|eea|india|mexico|australia|germany|france|spain)\b/.test(loc);
 }
 
 function matchesAny(text, patterns) {
