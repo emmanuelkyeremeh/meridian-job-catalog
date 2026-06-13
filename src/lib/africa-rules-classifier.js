@@ -179,19 +179,41 @@ const US_CA_STATE_ABBR_RE =
 const MAJOR_US_CA_CITIES_RE =
   /\b(?:san francisco|new york city|los angeles|chicago|boston|seattle|austin|denver|atlanta|dallas|houston|miami|phoenix|portland|philadelphia|san diego|san jose|salt lake city|minneapolis|nashville|charlotte|raleigh|pittsburgh|columbus|kansas city|toronto|vancouver|montreal|calgary|ottawa|edmonton)\b/i;
 
+/**
+ * Specific non-African countries (and major non-African metros) that lock a remote role
+ * out of Africa eligibility when they scope the location, e.g. "Remote Spain", "Portugal (Remote)",
+ * "Remote - India". Deliberately excludes every African country/city (those are handled by
+ * AFRICA_TERMS) and excludes EMEA/worldwide region words (handled by locationHasOpenRegion).
+ * NOTE: "MEA"/"Middle East & Africa" includes Africa and is handled by EMEA_RES, not here.
+ */
+const NON_AFRICA_COUNTRY_RE =
+  /\b(?:united states|u\.s\.a\.?|u\.s\.|usa|us|canada|united kingdom|u\.k\.|uk|great britain|england|scotland|wales|ireland|germany|france|spain|italy|netherlands|holland|poland|sweden|norway|denmark|finland|iceland|belgium|austria|switzerland|portugal|greece|czechia|czech republic|romania|hungary|bulgaria|croatia|slovakia|slovenia|serbia|estonia|latvia|lithuania|luxembourg|cyprus|malta|ukraine|russia|belarus|turkey|t\u00fcrkiye|israel|united arab emirates|u\.a\.e\.|uae|dubai|abu dhabi|saudi arabia|qatar|kuwait|bahrain|oman|jordan|lebanon|india|pakistan|bangladesh|sri lanka|nepal|china|japan|south korea|korea|singapore|hong kong|taiwan|thailand|vietnam|cambodia|philippines|indonesia|malaysia|australia|new zealand|mexico|brazil|argentina|colombia|chile|peru|ecuador|uruguay|paraguay|bolivia|venezuela|costa rica|panama|guatemala|honduras|el salvador|nicaragua|dominican republic|jamaica)\b/i;
+
+/**
+ * True when the location names a concrete non-African country/state/metro (with a remote scope),
+ * which is authoritative: only a genuine worldwide signal can override it. A role's territory
+ * mentioned in the title/description (e.g. "EMEA …" on a "Remote Spain" posting) must NOT.
+ */
+function locationLocksToNonAfricaCountry(location) {
+  if (!location) return false;
+  if (locationHasOpenRegion(location)) return false;
+  if (containsAfricaTerm(location)) return false;
+  const loc = normalize(location);
+  if (!loc.includes('remote')) return false;
+  return (
+    NON_AFRICA_COUNTRY_RE.test(loc) ||
+    US_STATE_NAMES_RE.test(loc) ||
+    US_CA_STATE_ABBR_RE.test(loc) ||
+    MAJOR_US_CA_CITIES_RE.test(loc)
+  );
+}
+
 function locationIsRegionLocked(location) {
   if (!location) return false;
   if (locationHasOpenRegion(location)) return false;
   if (containsAfricaTerm(location)) return false;
   if (locationHardNo(location)) return true;
-  const loc = normalize(location);
-  if (!loc.includes('remote')) return false;
-  return (
-    /\b(?:us|usa|u\.s\.|united states|canada|uk|united kingdom|europe|eu\b|eea|india|mexico|australia|germany|france|spain)\b/.test(loc) ||
-    US_STATE_NAMES_RE.test(loc) ||
-    US_CA_STATE_ABBR_RE.test(loc) ||
-    MAJOR_US_CA_CITIES_RE.test(loc)
-  );
+  return locationLocksToNonAfricaCountry(location);
 }
 
 function matchesAny(text, patterns) {
@@ -220,13 +242,24 @@ function locationIsBareRemote(location) {
 }
 
 /**
- * A "rescue" overrides an explicit non-Africa location lock. Only STRONG, Africa, or EMEA
- * signals qualify — weak culture/benefit boilerplate ("remote-first", "EOR") must NOT
- * rescue a "Remote, US" / "Canada - Remote" posting, which is the main source of US/CA leakage.
+ * A "rescue" overrides a non-Africa location.
+ *
+ * Two tiers, because the location field is authoritative for *where the candidate may live*:
+ *  - When the location locks to a CONCRETE non-African country (e.g. "Remote Spain",
+ *    "United States (Remote)"), only a genuine worldwide signal in the text, or an Africa
+ *    term IN THE LOCATION, can override it. EMEA/Africa mentions in the title or description
+ *    describe the role's territory, not eligibility, and must NOT rescue it. This is the fix
+ *    for "Remote Spain" + "EMEA …" style leaks.
+ *  - For looser/open locations, an Africa term anywhere, a strong worldwide signal, or EMEA
+ *    in the location qualifies. Weak culture/benefit boilerplate ("remote-first", "EOR") never does.
  */
 function hasRescueSignal(job) {
   const text = joinText(job);
-  return containsAfricaTerm(text) || hasStrongGlobalSignal(text) || hasEmeaSignal(text);
+  const loc = job.location || '';
+  if (locationLocksToNonAfricaCountry(loc) || locationHardNo(loc)) {
+    return hasStrongGlobalSignal(text) || containsAfricaTerm(loc);
+  }
+  return containsAfricaTerm(text) || hasStrongGlobalSignal(text) || hasEmeaSignal(loc);
 }
 
 function hasHardNoSignal(job) {
@@ -300,9 +333,11 @@ function hasHardYesSignal(job) {
   // Weak culture/benefit phrases in the body ("remote-first", "EOR") are ignored here —
   // this is the fix for US/Canada-only jobs leaking into the Africa catalog.
   if (regionLocked) {
-    if (containsAfricaTerm(text)) return { yes: true, signal: 'africa-mention-over-lock' };
+    // Location names a concrete non-African country/region. Only a worldwide signal — or an
+    // Africa term IN THE LOCATION — overrides it. EMEA/Africa in the title/body is the role's
+    // territory, not the candidate's eligibility, so it cannot flip the verdict.
+    if (containsAfricaTerm(loc)) return { yes: true, signal: 'africa-location-over-lock' };
     if (hasStrongGlobalSignal(text)) return { yes: true, signal: 'global-remote-over-lock' };
-    if (hasEmeaSignal(text) && !locationHardNo(loc)) return { yes: true, signal: 'emea-over-lock' };
     return { yes: false };
   }
 
@@ -312,7 +347,9 @@ function hasHardYesSignal(job) {
   if (hasStrongGlobalSignal(loc) || hasStrongGlobalSignal(text)) {
     return { yes: true, signal: 'global-remote' };
   }
-  if (hasEmeaSignal(loc) || hasEmeaSignal(text)) {
+  // EMEA is Africa-inclusive only when it scopes the location itself ("Remote - EMEA").
+  // EMEA appearing solely in the title/description is left to the review/model tier.
+  if (hasEmeaSignal(loc)) {
     return { yes: true, signal: 'emea' };
   }
 

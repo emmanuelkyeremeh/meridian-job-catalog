@@ -159,4 +159,57 @@ describe('classifyAfricaJobRules', () => {
     });
     expect(result.verdict).toBe('yes');
   });
+
+  // --- "EMEA in the title, country-locked location" leakage (Dexcom "Remote Spain") ---
+
+  it('rejects "Remote Spain" even when the title says EMEA (territory != eligibility)', () => {
+    const result = classifyAfricaJobRules({
+      title: 'EMEA Sr. Clinical Study Manager',
+      company: 'Dexcom',
+      location: 'Remote Spain',
+      description:
+        'As a Senior Clinical Trial Lead you will drive execution of clinical investigations across our global standards of care.',
+    });
+    expect(result.verdict).toBe('no');
+  });
+
+  it('rejects "Remote Portugal" with an EMEA team description', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Account Manager',
+      company: 'EuroCo',
+      location: 'Remote Portugal',
+      description: 'Manage our EMEA book of business covering Europe, Middle East and Africa.',
+    });
+    expect(result.verdict).toBe('no');
+  });
+
+  it('rejects "Remote - India" with global payroll boilerplate', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Backend Engineer',
+      company: 'GlobalCo',
+      location: 'Remote - India',
+      description: 'We support global payroll via Deel and are a remote-first company.',
+    });
+    expect(result.verdict).toBe('no');
+  });
+
+  it('rejects Middle East country locks like "Remote UAE"', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Sales Director',
+      company: 'GulfCo',
+      location: 'Remote UAE',
+      description: 'Drive sales across the EMEA region from our Dubai-aligned remote team.',
+    });
+    expect(result.verdict).toBe('no');
+  });
+
+  it('still accepts a genuinely worldwide role tagged with a country plus worldwide', () => {
+    const result = classifyAfricaJobRules({
+      title: 'EMEA Support Engineer',
+      company: 'GlobalCo',
+      location: 'Remote (Worldwide)',
+      description: 'Support customers everywhere. We hire from anywhere in the world.',
+    });
+    expect(result.verdict).toBe('yes');
+  });
 });
