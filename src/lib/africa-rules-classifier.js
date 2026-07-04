@@ -2,6 +2,7 @@
  * Rule-based Africa eligibility classifier.
  * Returns yes | no | maybe — LLM is only needed for maybe.
  */
+import { sanitizeDescription } from './description-utils.js';
 
 const AFRICA_TERMS = [
   'algeria', 'angola', 'benin', 'botswana', 'burkina faso', 'burundi', 'cabo verde', 'cape verde',
@@ -44,7 +45,10 @@ const STRONG_GLOBAL_RES = [
   /\b(?:outside|beyond)\s+(?:the\s+)?(?:us|u\.s\.|usa|united\s+states|canada)\b/i,
   /\b(?:any|all)\s+(?:countries?|locations?)\s+(?:except|excluding)\s+(?:the\s+)?(?:us|u\.s\.|usa|canada)\b/i,
   /\bafrica(?:n)?\s+time\s*zone\b/i,
-  /\b(?:eat|wat|cat|sast|west\s+africa\s+time|central\s+africa\s+time|east\s+africa\s+time|south\s+africa\s+standard\s+time)\b/i,
+  /\b(?:west|central|east)\s+africa\s+time\b/i,
+  /\bsouth\s+africa\s+standard\s+time\b/i,
+  // Abbreviations only with explicit Africa time-zone context (bare SAST/EAT/WAT/CAT match AppSec acronyms).
+  /\b(?:EAT|WAT|CAT|SAST)\b\s*(?:\(|[-–:])\s*(?:east|west|central|south)\s+africa(?:n)?(?:\s+standard)?\s+time\b/i,
 ];
 
 /**
@@ -160,7 +164,10 @@ const AFRICA_RE = new RegExp(
 );
 
 function joinText(job) {
-  return [job.title, job.location, job.description].filter(Boolean).join(' ');
+  const title = job.title != null ? String(job.title) : '';
+  const location = job.location != null ? String(job.location) : '';
+  const description = job.description != null ? sanitizeDescription(String(job.description)) : '';
+  return [title, location, description].filter(Boolean).join(' ');
 }
 
 function containsAfricaTerm(text) {

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAfricaJobRules, localModelYesAllowed } from './africa-rules-classifier.js';
+import {
+  classifyAfricaJobRules,
+  isAfricaEligibleForCatalog,
+  localModelYesAllowed,
+} from './africa-rules-classifier.js';
 
 describe('classifyAfricaJobRules', () => {
   it('rejects EU-only remote roles by location', () => {
@@ -161,6 +165,19 @@ describe('classifyAfricaJobRules', () => {
       description: 'Application security engineer role for our India engineering hub. '.repeat(3),
     });
     expect(result.verdict).toBe('no');
+  });
+
+  it('does not treat AppSec SAST tooling as a worldwide eligibility signal on India-remote roles', () => {
+    const job = {
+      title: 'Product Security Engineer',
+      company: 'Avalara',
+      location: 'Remote, India',
+      description:
+        'Design SAST and DAST pipelines across the SDLC. Find XSS, SSRF, RCE, CSRF and SQLi. ' +
+        'Application security CICD code scanning using algorithmic and AI-driven technologies.',
+    };
+    expect(classifyAfricaJobRules(job).verdict).toBe('no');
+    expect(isAfricaEligibleForCatalog(job)).toBe(false);
   });
 
   it('does not auto-allow bare Remote with long description and no open-region signal', () => {
