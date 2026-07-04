@@ -27,17 +27,16 @@ const STRONG_GLOBAL_RES = [
   /\bworldwide\s+remote\b/i,
   /\bworld\s+wide\s*-\s*remote\b/i,
   /\bwork\s+from\s+anywhere\s+in\s+the\s+world\b/i,
-  /\bwork\s+from\s+anywhere\b/i,
   /\bwork\s+from\s+any\s+country\b/i,
   /\banywhere\s+in\s+the\s+world\b/i,
-  /\bglobally\s+distributed\b/i,
   /\bglobal\s+remote\b/i,
   /\bremote\s*-\s*global\b/i,
   /\bhome\s+based\s*-\s*worldwide\b/i,
   /\bopen\s+to\s+(?:all|any)\s+(?:locations?|countries?)\b/i,
-  /\bopen\s+to\s+candidates?\s+(?:located\s+)?(?:anywhere|outside\s+(?:the\s+)?(?:us|usa|united\s+states))\b/i,
+  /\bopen\s+to\s+candidates?\s+(?:located\s+)?anywhere\s+(?:in\s+the\s+world|worldwide|globally|on\s+the\s+planet)\b/i,
+  /\bopen\s+to\s+candidates?\s+(?:located\s+)?outside\s+(?:the\s+)?(?:us|u\.s\.|usa|united\s+states)\b/i,
   /\bhire\s+in\s+\d+\+?\s+countries\b/i,
-  /\bhire\s+(?:from\s+)?anywhere\b/i,
+  /\bhire\s+(?:from\s+)?anywhere\s+(?:in\s+the\s+world|worldwide|globally)\b/i,
   /\b100%\s+remote\s+worldwide\b/i,
   /\b(?:excluding|except)\s+(?:the\s+)?(?:us|u\.s\.|usa|united\s+states|canada)\b/i,
   /\bnon[- ]us\s+remote\b/i,
@@ -56,6 +55,8 @@ const STRONG_GLOBAL_RES = [
  * location is open or a bare "Remote".
  */
 const WEAK_GLOBAL_RES = [
+  /\bglobally\s+distributed\b/i,
+  /\bwork\s+from\s+anywhere\b/i,
   /\bfully\s+distributed\b/i,
   /\blocation[- ]independent\b/i,
   /\bpay\s+(?:you\s+)?in\s+any\s+currency\b/i,
@@ -107,6 +108,8 @@ const LOCATION_NO_RES = [
   /\b(?:eu|eea|europe|european union)\s+only\b/i,
   /\b(?:apac|latam|latin america)\s+only\b/i,
   /\b(?:us|usa|u\.s\.|united states)\s*,\s*remote\b/i,
+  /\bremote\s*,\s*(?:india|mexico|colombia|brazil|australia|japan|china|philippines|pakistan|argentina|chile|peru|singapore|hong kong|korea|israel|turkey|uae|dubai|united states|usa|u\.s\.|canada|united kingdom|uk|germany|france|spain|italy|netherlands|ireland)\b/i,
+  /\bremote\s*\([^)]*(?:atlanta|austin|boston|chicago|denver|miami|seattle|san\s+francisco|new\s+york|los\s+angeles|portland|phoenix|dallas|houston|philadelphia|washington)[^)]*\)/i,
   /\b[a-z .]+,\s*(?:usa|us)\s*\(remote\)/i,
   /\b(?:san francisco|new york|los angeles|chicago|boston|seattle|austin|denver|atlanta|dallas|houston|miami|phoenix|portland|washington,\s*dc)\b[^|]*\bor\s+remote\s*\(\s*(?:us|usa)\s*\)/i,
 ];
@@ -126,6 +129,12 @@ const DESCRIPTION_NO_RES = [
   /\bw2\s+only\b/i,
   /\bauthorized\s+to\s+work\s+in\s+(?:the\s+)?(?:united states|u\.s\.|usa)\b/i,
   /\b(?:us|u\.s\.|usa|united states)\s+citizen(?:ship)?\s+(?:required|only)\b/i,
+  /\bopen\s+to\s+candidates?\s+(?:located\s+)?anywhere\s+in\s+(?:the\s+)?(?:u\.?\s*s\.?|us|usa|united\s+states)\b/i,
+  /\bcandidates?\s+(?:located\s+)?anywhere\s+in\s+(?:the\s+)?(?:u\.?\s*s\.?|us|usa|united\s+states)\b/i,
+  /\brole\s+is\s+open\s+to\s+candidates?\s+(?:located\s+)?(?:only\s+)?in\s+(?:the\s+)?(?:u\.?\s*s\.?|us|usa|united\s+states)\b/i,
+  /\b(?:must be|required to be)\s+(?:legally\s+)?(?:located|based|residing|living)\s+in\s+india\b/i,
+  /\b(?:candidates?|applicants?|employees?)\s+(?:must be\s+)?(?:based|located|residing)\s+in\s+india\b/i,
+  /\bremote\s+(?:role\s+)?(?:in|for)\s+india\b/i,
   /\b(?:must be|required to be)\s+(?:legally\s+)?(?:located|based|residing|living)\s+in\s+(?:the\s+)?(?:eu|eea|european union)\b/i,
   /\b(?:eligible|authorized)\s+to\s+work\s+in\s+(?:the\s+)?(?:eu|eea|european union)\b/i,
   /\b(?:within|in)\s+(?:certain\s+)?(?:countries?\s+(?:within|in)\s+)?(?:the\s+)?(?:eu|eea|european union)\b/i,
@@ -303,8 +312,8 @@ function localModelYesAllowed(job) {
   const loc = normalize(job.location || '');
   const desc = String(job.description || '');
   if (hasStrongGlobalSignal(desc) || hasEmeaSignal(desc)) return true;
-  if (loc.includes('remote') && desc.length >= 80) return true;
   if (containsAfricaTerm(loc)) return true;
+  if (containsAfricaTerm(desc) && (loc.includes('remote') || locationIsBareRemote(loc))) return true;
   return false;
 }
 

@@ -16,23 +16,51 @@ export function isLikelyCssOrGarbage(text) {
   return garbageRatio > 0.08;
 }
 
-/** Decode common HTML entities (including numeric). */
+/** Named HTML entities often double-encoded by ATS feeds (e.g. &apos&semi; → '). */
+const NAMED_HTML_ENTITIES = {
+  nbsp: ' ',
+  semi: ';',
+  period: '.',
+  comma: ',',
+  colon: ':',
+  lpar: '(',
+  rpar: ')',
+  num: '#',
+  sol: '/',
+  quot: '"',
+  apos: "'",
+};
+
+function applyNamedHtmlEntities(text) {
+  let out = text;
+  for (const [name, ch] of Object.entries(NAMED_HTML_ENTITIES)) {
+    out = out.replace(new RegExp(`&${name};`, 'gi'), ch);
+  }
+  return out;
+}
+
+/** Decode common HTML entities (including numeric). Runs multiple passes for double-encoding. */
 function decodeHtmlEntities(text) {
   if (!text || typeof text !== 'string') return '';
-  let out = text
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/gi, "'")
-    .replace(/&nbsp;/gi, ' ');
-  out = out.replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
-    String.fromCodePoint(parseInt(hex, 16))
-  );
-  out = out.replace(/&#(\d+);/g, (_, dec) =>
-    String.fromCodePoint(parseInt(dec, 10))
-  );
+  let out = text;
+  for (let pass = 0; pass < 4; pass += 1) {
+    const prev = out;
+    out = out
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/gi, "'");
+    out = applyNamedHtmlEntities(out);
+    out = out.replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16))
+    );
+    out = out.replace(/&#(\d+);/g, (_, dec) =>
+      String.fromCodePoint(parseInt(dec, 10))
+    );
+    if (out === prev) break;
+  }
   return out;
 }
 

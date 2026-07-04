@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAfricaJobRules } from './africa-rules-classifier.js';
+import { classifyAfricaJobRules, localModelYesAllowed } from './africa-rules-classifier.js';
 
 describe('classifyAfricaJobRules', () => {
   it('rejects EU-only remote roles by location', () => {
@@ -127,6 +127,51 @@ describe('classifyAfricaJobRules', () => {
       description: 'Manage key accounts. Fully distributed team culture in the US.',
     });
     expect(result.verdict).toBe('no');
+  });
+
+  it('rejects US-remote jobs that say "open to candidates anywhere in the U.S."', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Migration & Implementation Lead',
+      company: 'moxie',
+      location: 'Remote - US',
+      description:
+        "At Moxie, we've grown to a global, remote-first team supporting 700+ practices nationwide. " +
+        'This role is open to candidates anywhere in the U. S., though we have a strong preference for those based in or willing to work Eastern or Central time zones.',
+    });
+    expect(result.verdict).toBe('no');
+  });
+
+  it('rejects US-metro-list remote locations with "globally distributed" boilerplate', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Director, FP&A',
+      company: 'ditto',
+      location: 'Remote (Atlanta, Austin, San Francisco, Seattle)',
+      description:
+        'As a globally distributed, fast-growing startup, we are committed to building a diverse team. ' +
+        'Trusted by Chick-fil-A, Delta Airlines, and the U.S. military.',
+    });
+    expect(result.verdict).toBe('no');
+  });
+
+  it('rejects India-remote jobs (Remote, India)', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Product Security Engineer',
+      company: 'Avalara',
+      location: 'Remote, India',
+      description: 'Application security engineer role for our India engineering hub. '.repeat(3),
+    });
+    expect(result.verdict).toBe('no');
+  });
+
+  it('does not auto-allow bare Remote with long description and no open-region signal', () => {
+    const job = {
+      title: 'Product Security Engineer',
+      company: 'Avalara',
+      location: 'Remote',
+      description: 'Security engineer based in India. '.repeat(20),
+    };
+    expect(classifyAfricaJobRules(job).verdict).toBe('review');
+    expect(localModelYesAllowed(job)).toBe(false);
   });
 
   it('still rescues a US-located job whose body explicitly opens to candidates outside the US', () => {
