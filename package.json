@@ -1,0 +1,19 @@
+{
+  "name": "meridian-job-catalog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic job catalogue tools extracted from Meridian",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "demo": "node src/cli.js examples/jobs.json",
+    "catalog": "node src/cli.js",
+    "test": "vitest run",
+    "check:scope": "node scripts/check-scope.js"
+  },
+  "devDependencies": {
+    "vitest": "4.1.12"
+  }
+}

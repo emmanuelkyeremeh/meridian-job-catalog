@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   classifyAfricaJobRules,
   isAfricaEligibleForCatalog,
-  localModelYesAllowed,
+  hasSupportingEligibilitySignals,
 } from './africa-rules-classifier.js';
 
 describe('classifyAfricaJobRules', () => {
@@ -68,7 +68,7 @@ describe('classifyAfricaJobRules', () => {
     expect(result.verdict).toBe('no');
   });
 
-  it('sends bare Remote to LLM review queue by default', () => {
+  it('sends bare Remote to manual review queue by default', () => {
     const result = classifyAfricaJobRules({
       title: 'Platform Engineer',
       company: 'Co',
@@ -188,7 +188,7 @@ describe('classifyAfricaJobRules', () => {
       description: 'Security engineer based in India. '.repeat(20),
     };
     expect(classifyAfricaJobRules(job).verdict).toBe('review');
-    expect(localModelYesAllowed(job)).toBe(false);
+    expect(hasSupportingEligibilitySignals(job)).toBe(false);
   });
 
   it('still rescues a US-located job whose body explicitly opens to candidates outside the US', () => {
@@ -198,6 +198,54 @@ describe('classifyAfricaJobRules', () => {
       location: 'Remote - US',
       description:
         'Open to candidates outside the US as well — we hire from anywhere in the world.',
+    });
+    expect(result.verdict).toBe('yes');
+  });
+
+  // --- US state/metro + slogan "anywhere in the world" (Innodata-class) ---
+
+  it('rejects Remote - Alabama when body only has slogan "anywhere in the world"', () => {
+    const job = {
+      title: 'Generative AI Associate - Flexible Hours',
+      company: 'Innodata Inc.',
+      location: 'Remote - Alabama',
+      description:
+        "This is not a traditional full-time role. It's a part-time SME on Demand opportunity. " +
+        'Shape the future of AI from anywhere in the world, on your own terms. Labeling and rating model outputs.',
+    };
+    expect(classifyAfricaJobRules(job).verdict).toBe('no');
+    expect(isAfricaEligibleForCatalog(job)).toBe(false);
+  });
+
+  it('rejects Remote - Mississippi when body only has slogan "anywhere in the world"', () => {
+    const job = {
+      title: 'Generative AI Associate - Flexible Hours',
+      company: 'Innodata Inc.',
+      location: 'Remote - Mississippi',
+      description:
+        'part-time, remote, flexible. from anywhere in the world, on your own terms. Labeling. SME on Demand.',
+    };
+    expect(classifyAfricaJobRules(job).verdict).toBe('no');
+    expect(isAfricaEligibleForCatalog(job)).toBe(false);
+  });
+
+  it('still rescues a US-state remote job with eligibility-shaped worldwide copy', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Support Engineer',
+      company: 'GlobalCo',
+      location: 'Remote - Alabama',
+      description:
+        'Open to candidates outside the US. We hire from anywhere in the world.',
+    });
+    expect(result.verdict).toBe('yes');
+  });
+
+  it('still allows slogan worldwide to rescue country-level Remote - US (not state lock)', () => {
+    const result = classifyAfricaJobRules({
+      title: 'Writer',
+      company: 'Co',
+      location: 'Remote - US',
+      description: 'Contribute from anywhere in the world on your own schedule.',
     });
     expect(result.verdict).toBe('yes');
   });

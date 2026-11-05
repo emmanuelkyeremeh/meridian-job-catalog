@@ -1,0 +1,38 @@
+[
+  {
+    "title": "Junior Backend Developer",
+    "company": "Example Savannah Tools",
+    "location": "Remote - Ghana",
+    "description": "Build public APIs. Applicants must be based in Ghana. One year of experience.",
+    "url": "https://savannah.example/jobs/backend",
+    "salary": "USD 20 per hour"
+  },
+  {
+    "title": "Senior Frontend Engineer",
+    "company": "Example Atlas Studio",
+    "location": "Remote Worldwide",
+    "description": "Open to candidates worldwide. Build accessible web interfaces.",
+    "url": "https://atlas.example/jobs/frontend"
+  },
+  {
+    "title": "Software Engineering Intern",
+    "company": "Example Coast Systems",
+    "location": "Remote Europe",
+    "description": "Applicants must be based in the European Union.",
+    "url": "https://coast.example/jobs/intern"
+  },
+  {
+    "title": "Platform Engineer",
+    "company": "Example Orbit Works",
+    "location": "Remote",
+    "description": "Build reliable systems with our team. Location eligibility is not specified.",
+    "url": "https://orbit.example/jobs/platform"
+  },
+  {
+    "title": "Support Engineer",
+    "company": "Example Acacia Cloud",
+    "location": "Remote - EMEA",
+    "description": "Provide product support across Europe, Middle East and Africa.",
+    "url": "https://acacia.example/jobs/support"
+  }
+]

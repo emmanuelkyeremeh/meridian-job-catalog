@@ -1,5 +1,5 @@
 /**
- * Sanitize job descriptions for storage and AI: decode HTML entities, strip tags,
+ * Sanitize job descriptions for catalogue display: decode HTML entities, strip tags,
  * normalize unicode, collapse whitespace. Use for ATS API and HTML-extracted content.
  */
 

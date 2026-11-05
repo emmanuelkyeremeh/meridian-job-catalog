@@ -1,5 +1,5 @@
 /**
- * Job URL helpers: normalize URL and derive stable id. Used by Turso applied jobs and seed scripts.
+ * Job URL helpers: normalize URL and derive stable id. Used to deduplicate catalogue records.
  */
 import crypto from 'crypto';
 

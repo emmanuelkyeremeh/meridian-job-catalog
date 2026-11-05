@@ -1,6 +1,6 @@
 /**
  * Rule-based Africa eligibility classifier.
- * Returns yes | no | maybe — LLM is only needed for maybe.
+ * Returns yes | no | review using deterministic text rules only.
  */
 import { sanitizeDescription } from './description-utils.js';
 
@@ -19,9 +19,17 @@ const AFRICA_TERMS = [
 ];
 
 /**
+ * Slogan-only worldwide phrasing. Fine as a soft signal on open/"Remote - US" locations,
+ * but NOT enough to rescue a US state/city ATS lock ("Remote - Alabama") — contractor
+ * marketing copy (e.g. Innodata SME-on-demand) uses this next to domestic geo rows.
+ */
+const ANYWHERE_IN_THE_WORLD_RE = /\banywhere\s+in\s+the\s+world\b/i;
+
+/**
  * STRONG global-remote signals: genuine worldwide / Africa-inclusive eligibility.
  * These are trustworthy enough to RESCUE a job whose location names a non-Africa region
  * (e.g. "Remote, US" but the body says "open to candidates anywhere in the world").
+ * Exception: US state/metro locks require {@link US_DOMESTIC_RESCUE_RES} (excludes slogan-only).
  */
 const STRONG_GLOBAL_RES = [
   /\bremote\s+worldwide\b/i,
@@ -29,7 +37,7 @@ const STRONG_GLOBAL_RES = [
   /\bworld\s+wide\s*-\s*remote\b/i,
   /\bwork\s+from\s+anywhere\s+in\s+the\s+world\b/i,
   /\bwork\s+from\s+any\s+country\b/i,
-  /\banywhere\s+in\s+the\s+world\b/i,
+  ANYWHERE_IN_THE_WORLD_RE,
   /\bglobal\s+remote\b/i,
   /\bremote\s*-\s*global\b/i,
   /\bhome\s+based\s*-\s*worldwide\b/i,
@@ -51,6 +59,8 @@ const STRONG_GLOBAL_RES = [
   /\b(?:EAT|WAT|CAT|SAST)\b\s*(?:\(|[-–:])\s*(?:east|west|central|south)\s+africa(?:n)?(?:\s+standard)?\s+time\b/i,
 ];
 
+/** Eligibility-shaped strong signals allowed to rescue US state/city remote locks. */
+const US_DOMESTIC_RESCUE_RES = STRONG_GLOBAL_RES.filter((re) => re !== ANYWHERE_IN_THE_WORLD_RE);
 /**
  * WEAK global-remote signals: company-culture / benefit / product boilerplate that
  * frequently appears in US-only or region-locked postings ("we're a remote-first company",
@@ -206,6 +216,24 @@ const NON_AFRICA_COUNTRY_RE =
   /\b(?:united states|u\.s\.a\.?|u\.s\.|usa|us|canada|united kingdom|u\.k\.|uk|great britain|england|scotland|wales|ireland|germany|france|spain|italy|netherlands|holland|poland|sweden|norway|denmark|finland|iceland|belgium|austria|switzerland|portugal|greece|czechia|czech republic|romania|hungary|bulgaria|croatia|slovakia|slovenia|serbia|estonia|latvia|lithuania|luxembourg|cyprus|malta|ukraine|russia|belarus|turkey|t\u00fcrkiye|israel|united arab emirates|u\.a\.e\.|uae|dubai|abu dhabi|saudi arabia|qatar|kuwait|bahrain|oman|jordan|lebanon|india|pakistan|bangladesh|sri lanka|nepal|china|japan|south korea|korea|singapore|hong kong|taiwan|thailand|vietnam|cambodia|philippines|indonesia|malaysia|australia|new zealand|mexico|brazil|argentina|colombia|chile|peru|ecuador|uruguay|paraguay|bolivia|venezuela|costa rica|panama|guatemala|honduras|el salvador|nicaragua|dominican republic|jamaica)\b/i;
 
 /**
+ * True when the location names a US/CA state or major metro with a remote scope
+ * (e.g. "Remote - Alabama", "Austin, TX (Remote)"). These ATS rows are domestic
+ * compliance postings; slogan "anywhere in the world" must not rescue them.
+ */
+function locationLocksToUsDomesticRemote(location) {
+  if (!location) return false;
+  if (locationHasOpenRegion(location)) return false;
+  if (containsAfricaTerm(location)) return false;
+  const loc = normalize(location);
+  if (!loc.includes('remote')) return false;
+  return (
+    US_STATE_NAMES_RE.test(loc) ||
+    US_CA_STATE_ABBR_RE.test(loc) ||
+    MAJOR_US_CA_CITIES_RE.test(loc)
+  );
+}
+
+/**
  * True when the location names a concrete non-African country/state/metro (with a remote scope),
  * which is authoritative: only a genuine worldwide signal can override it. A role's territory
  * mentioned in the title/description (e.g. "EMEA …" on a "Remote Spain" posting) must NOT.
@@ -218,12 +246,9 @@ function locationLocksToNonAfricaCountry(location) {
   if (!loc.includes('remote')) return false;
   return (
     NON_AFRICA_COUNTRY_RE.test(loc) ||
-    US_STATE_NAMES_RE.test(loc) ||
-    US_CA_STATE_ABBR_RE.test(loc) ||
-    MAJOR_US_CA_CITIES_RE.test(loc)
+    locationLocksToUsDomesticRemote(location)
   );
 }
-
 function locationIsRegionLocked(location) {
   if (!location) return false;
   if (locationHasOpenRegion(location)) return false;
@@ -240,10 +265,13 @@ function hasStrongGlobalSignal(text) {
   return matchesAny(text, STRONG_GLOBAL_RES);
 }
 
+function hasUsDomesticRescueSignal(text) {
+  return matchesAny(text, US_DOMESTIC_RESCUE_RES);
+}
+
 function hasWeakGlobalSignal(text) {
   return matchesAny(text, WEAK_GLOBAL_RES);
 }
-
 function hasGlobalRemoteSignal(text) {
   return matchesAny(text, GLOBAL_REMOTE_RES);
 }
@@ -260,24 +288,26 @@ function locationIsBareRemote(location) {
 /**
  * A "rescue" overrides a non-Africa location.
  *
- * Two tiers, because the location field is authoritative for *where the candidate may live*:
- *  - When the location locks to a CONCRETE non-African country (e.g. "Remote Spain",
- *    "United States (Remote)"), only a genuine worldwide signal in the text, or an Africa
- *    term IN THE LOCATION, can override it. EMEA/Africa mentions in the title or description
- *    describe the role's territory, not eligibility, and must NOT rescue it. This is the fix
- *    for "Remote Spain" + "EMEA …" style leaks.
- *  - For looser/open locations, an Africa term anywhere, a strong worldwide signal, or EMEA
- *    in the location qualifies. Weak culture/benefit boilerplate ("remote-first", "EOR") never does.
+ * Tiers, because the location field is authoritative for *where the candidate may live*:
+ *  - US/CA state or metro remote locks ("Remote - Alabama"): only eligibility-shaped worldwide
+ *    signals (not slogan-only "anywhere in the world"), or Africa in the location.
+ *  - Other concrete non-African country locks ("Remote Spain", "United States (Remote)"):
+ *    strong worldwide signal or Africa in the location. EMEA/Africa in title/body is territory,
+ *    not eligibility.
+ *  - Looser/open locations: Africa anywhere, strong worldwide, or EMEA in the location.
+ *    Weak culture/benefit boilerplate ("remote-first", "EOR") never rescues a lock.
  */
 function hasRescueSignal(job) {
   const text = joinText(job);
   const loc = job.location || '';
+  if (locationLocksToUsDomesticRemote(loc)) {
+    return hasUsDomesticRescueSignal(text) || containsAfricaTerm(loc);
+  }
   if (locationLocksToNonAfricaCountry(loc) || locationHardNo(loc)) {
     return hasStrongGlobalSignal(text) || containsAfricaTerm(loc);
   }
   return containsAfricaTerm(text) || hasStrongGlobalSignal(text) || hasEmeaSignal(loc);
 }
-
 function hasHardNoSignal(job) {
   const loc = job.location || '';
   const text = joinText(job);
@@ -311,7 +341,7 @@ function isMarketplaceRemoteJob(job) {
   return Boolean(job.meridianMarketplaceRemote || job.meridianWorldwideRemote);
 }
 
-function localModelYesAllowed(job) {
+function hasSupportingEligibilitySignals(job) {
   if (isMarketplaceRemoteJob(job)) return true;
   if (isSparseJobText(job)) return false;
   if (hasHardNoSignal(job)) return false;
@@ -324,7 +354,7 @@ function localModelYesAllowed(job) {
   return false;
 }
 
-export { localModelYesAllowed, isSparseJobText, hasRescueSignal, hasHardNoSignal };
+export { hasSupportingEligibilitySignals, isSparseJobText, hasRescueSignal, hasHardNoSignal };
 
 function hasHardYesSignal(job) {
   const loc = job.location || '';
@@ -345,7 +375,7 @@ function hasHardYesSignal(job) {
   const regionLocked = locationIsRegionLocked(loc);
 
   // When the location explicitly locks to a non-Africa region (e.g. "Remote, US",
-  // "Canada - Remote", "EU only"), ONLY a strong/Africa/EMEA rescue may flip it to yes.
+  // "Canada - Remote", "EU only"), ONLY a strong/Africa rescue may flip it to yes.
   // Weak culture/benefit phrases in the body ("remote-first", "EOR") are ignored here —
   // this is the fix for US/Canada-only jobs leaking into the Africa catalog.
   if (regionLocked) {
@@ -353,10 +383,17 @@ function hasHardYesSignal(job) {
     // Africa term IN THE LOCATION — overrides it. EMEA/Africa in the title/body is the role's
     // territory, not the candidate's eligibility, so it cannot flip the verdict.
     if (containsAfricaTerm(loc)) return { yes: true, signal: 'africa-location-over-lock' };
+    // US state/city ATS rows need eligibility-shaped copy; slogan "anywhere in the world" alone
+    // is contractor marketing and must not rescue (Innodata Alabama/Mississippi class).
+    if (locationLocksToUsDomesticRemote(loc)) {
+      if (hasUsDomesticRescueSignal(text)) {
+        return { yes: true, signal: 'global-remote-over-lock' };
+      }
+      return { yes: false };
+    }
     if (hasStrongGlobalSignal(text)) return { yes: true, signal: 'global-remote-over-lock' };
     return { yes: false };
   }
-
   if (containsAfricaTerm(text)) {
     return { yes: true, signal: 'africa' };
   }
@@ -364,7 +401,7 @@ function hasHardYesSignal(job) {
     return { yes: true, signal: 'global-remote' };
   }
   // EMEA is Africa-inclusive only when it scopes the location itself ("Remote - EMEA").
-  // EMEA appearing solely in the title/description is left to the review/model tier.
+  // EMEA appearing solely in the title/description is left to the manual review queue.
   if (hasEmeaSignal(loc)) {
     return { yes: true, signal: 'emea' };
   }
@@ -384,7 +421,7 @@ function hasHardYesSignal(job) {
 }
 
 /**
- * @returns {{ verdict: 'yes' | 'no' | 'review' | 'maybe', signal?: string, reason: string }}
+ * @returns {{ verdict: 'yes' | 'no' | 'review', signal?: string, reason: string }}
  */
 export function classifyAfricaJobRules(job) {
   const yes = hasHardYesSignal(job);
@@ -403,7 +440,7 @@ export function classifyAfricaJobRules(job) {
   const loc = job.location || '';
   const desc = job.description || '';
 
-  // Borderline → LLM (hard yes/no handled above).
+  // Borderline listings require manual review.
   if (locationIsBareRemote(loc)) {
     return { verdict: 'review', reason: 'vague-remote-no-scope' };
   }
@@ -414,29 +451,21 @@ export function classifyAfricaJobRules(job) {
     return { verdict: 'review', reason: 'remote-no-open-region' };
   }
 
-  if (process.env.AFRICA_RULES_LLM_MAYBE === '1') {
-    if (normalize(loc).includes('remote')) {
-      return { verdict: 'maybe', reason: 'unclassified-remote' };
-    }
-    return { verdict: 'maybe', reason: 'insufficient-signal' };
-  }
-
   return { verdict: 'review', reason: 'insufficient-signal' };
 }
 
-/** Jobs allowed in the live Africa catalog after rules + optional model/LLM. */
+/** Strict catalogue inclusion: ambiguous listings remain in manual review. */
 export function isAfricaEligibleForCatalog(job) {
   const result = classifyAfricaJobRules(job);
   if (result.verdict === 'yes') return true;
   if (result.verdict === 'no') return false;
-  return localModelYesAllowed(job);
+  return false;
 }
 
 export function classifyAfricaJobsRules(jobs) {
   const yes = [];
   const no = [];
   const review = [];
-  const maybe = [];
 
   for (const job of jobs) {
     const result = classifyAfricaJobRules(job);
@@ -444,7 +473,6 @@ export function classifyAfricaJobsRules(jobs) {
     if (result.signal) row.africaSignal = result.signal;
     if (result.verdict === 'yes') yes.push(row);
     else if (result.verdict === 'no') no.push(row);
-    else if (result.verdict === 'maybe') maybe.push(row);
     else review.push(row);
   }
 
@@ -452,13 +480,11 @@ export function classifyAfricaJobsRules(jobs) {
     yes,
     no,
     review,
-    maybe,
     stats: {
       total: jobs.length,
       yes: yes.length,
       no: no.length,
       review: review.length,
-      maybe: maybe.length,
     },
   };
 }
