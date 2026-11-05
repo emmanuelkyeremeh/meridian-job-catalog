@@ -36,3 +36,7 @@ The current edition has no AI SDKs or model calls, model training, account syste
 The retained Meridian modules cover location-signal rules, job-description cleanup, experience detection, stable identifiers, URL slugs, salary extraction and Workday URL normalization. The CLI composes these modules into a standalone workflow. The tests include inherited regression cases and end-to-end coverage of the extracted workflow. CI runs the scope check, tests and fictional-data demo.
 
 See [ROADMAP.md](ROADMAP.md) for planned engineering work and [SUBMISSION.md](SUBMISSION.md) for a transparent BYOP description. Alignerr has not approved this extracted edition. Repository readiness does not establish project eligibility, guarantee assignment or authorize paid work.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE). This licence covers the extracted code in this repository; it does not publish or license the separate private production repositories.

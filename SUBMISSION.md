@@ -10,7 +10,7 @@ Meridian Job Catalog is a standalone JavaScript component extracted from my exis
 
 ## Repository link
 
-Use the final public repository root after publication, not the production backend or frontend repositories.
+https://github.com/emmanuelkyeremeh/meridian-job-catalog
 
 ## Ownership and history
 
@@ -20,7 +20,7 @@ This is a history-preserving extraction from the private Meridian backend. The o
 
 ## Licence
 
-Use the exact licence chosen for LICENSE, after owner approval. Do not claim that a licence has been granted until it is present.
+MIT. See LICENSE in the repository root.
 
 ## Work remaining
 
